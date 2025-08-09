@@ -1,188 +1,158 @@
--- Мобильный GUI на Luau для Roblox (оптимизирован для Poco C75)
--- Поместите этот скрипт в ServerScriptService как обычный Script
+-- Флай скрипт на Luau для мобильных устройств
+-- Поместите этот скрипт в StarterPlayerScripts как LocalScript
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local character = player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Создаем основной GUI
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MobileGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
+-- Переменные флая
+local flying = false
+local flySpeed = 50
+local bodyVelocity = nil
+local bodyAngularVelocity = nil
+local flyConnection = nil
 
--- Переменная для состояния GUI
-local guiVisible = true
+-- Создаем GUI для флая
+local flyGui = Instance.new("ScreenGui")
+flyGui.Name = "FlyGUI"
+flyGui.ResetOnSpawn = false
+flyGui.Parent = playerGui
 
--- TOGGLE BUTTON (красная кнопка для включения/выключения)
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 50, 0, 50)
-toggleButton.Position = UDim2.new(1, -60, 0, 10)
-toggleButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-toggleButton.BorderSizePixel = 0
-toggleButton.Text = "❌"
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.TextScaled = true
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.ZIndex = 1000
-toggleButton.Parent = screenGui
+-- Главная кнопка флая
+local flyButton = Instance.new("TextButton")
+flyButton.Name = "FlyButton"
+flyButton.Size = UDim2.new(0, 80, 0, 80)
+flyButton.Position = UDim2.new(0, 20, 1, -100)
+flyButton.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+flyButton.BorderSizePixel = 0
+flyButton.Text = "✈️"
+flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyButton.TextScaled = true
+flyButton.Font = Enum.Font.GothamBold
+flyButton.Parent = flyGui
 
--- Закругленная кнопка переключения
-local toggleCorner = Instance.new("UICorner")
-toggleCorner.CornerRadius = UDim.new(0, 25)
-toggleCorner.Parent = toggleButton
+-- Закругленная кнопка
+local flyCorner = Instance.new("UICorner")
+flyCorner.CornerRadius = UDim.new(0, 40)
+flyCorner.Parent = flyButton
 
--- Основной фрейм (компактный для мобилки)
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 320, 0, 400) -- Компактный размер для мобилки
-mainFrame.Position = UDim2.new(0.5, -160, 0.5, -200)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
-
--- Закругленные углы
-local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 15)
-mainCorner.Parent = mainFrame
-
--- Градиент для фона
-local gradient = Instance.new("UIGradient")
-gradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 70)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 40))
+-- Градиент для кнопки
+local flyGradient = Instance.new("UIGradient")
+flyGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 200, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 150, 255))
 }
-gradient.Rotation = 45
-gradient.Parent = mainFrame
+flyGradient.Rotation = 90
+flyGradient.Parent = flyButton
 
--- Заголовок (компактный)
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Name = "Title"
-titleLabel.Size = UDim2.new(1, 0, 0, 40)
-titleLabel.Position = UDim2.new(0, 0, 0, 10)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "📱 Mobile GUI"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextScaled = true
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Parent = mainFrame
+-- Панель управления флаем (скрытая по умолчанию)
+local controlPanel = Instance.new("Frame")
+controlPanel.Name = "ControlPanel"
+controlPanel.Size = UDim2.new(0, 200, 0, 150)
+controlPanel.Position = UDim2.new(0, 120, 1, -150)
+controlPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+controlPanel.BorderSizePixel = 0
+controlPanel.Visible = false
+controlPanel.Parent = flyGui
 
--- Функция создания мобильной кнопки (меньшего размера)
-local function createMobileButton(parent, text, position, size, color, callback)
-    local button = Instance.new("TextButton")
-    button.Size = size
-    button.Position = position
-    button.BackgroundColor3 = color
-    button.BorderSizePixel = 0
-    button.Text = text
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextScaled = true
-    button.Font = Enum.Font.Gotham
-    button.Parent = parent
-    
-    -- Закругленные углы
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = button
-    
-    -- Анимации при нажатии (быстрые для мобилки)
-    local originalSize = size
-    button.MouseButton1Down:Connect(function()
-        local clickTween = TweenService:Create(button, 
-            TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-            {Size = UDim2.new(size.X.Scale * 0.9, size.X.Offset * 0.9, size.Y.Scale * 0.9, size.Y.Offset * 0.9)}
-        )
-        clickTween:Play()
-    end)
-    
-    button.MouseButton1Up:Connect(function()
-        local releaseTween = TweenService:Create(button, 
-            TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-            {Size = originalSize}
-        )
-        releaseTween:Play()
-    end)
-    
-    if callback then
-        button.MouseButton1Click:Connect(callback)
-    end
-    
-    return button
-end
+local controlCorner = Instance.new("UICorner")
+controlCorner.CornerRadius = UDim.new(0, 15)
+controlCorner.Parent = controlPanel
 
--- Функция создания мобильного слайдера
-local function createMobileSlider(parent, position, size, minVal, maxVal, defaultVal, callback)
+-- Заголовок панели
+local panelTitle = Instance.new("TextLabel")
+panelTitle.Size = UDim2.new(1, 0, 0, 30)
+panelTitle.Position = UDim2.new(0, 0, 0, 5)
+panelTitle.BackgroundTransparency = 1
+panelTitle.Text = "✈️ Управление полетом"
+panelTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+panelTitle.TextScaled = true
+panelTitle.Font = Enum.Font.GothamBold
+panelTitle.Parent = controlPanel
+
+-- Слайдер скорости
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0, 80, 0, 20)
+speedLabel.Position = UDim2.new(0, 10, 0, 40)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "🚀 Скорость"
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.TextSize = 12
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.Parent = controlPanel
+
+-- Функция создания слайдера скорости
+local function createSpeedSlider()
     local sliderFrame = Instance.new("Frame")
-    sliderFrame.Size = size
-    sliderFrame.Position = position
+    sliderFrame.Size = UDim2.new(0, 120, 0, 15)
+    sliderFrame.Position = UDim2.new(0, 10, 0, 65)
     sliderFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 75)
     sliderFrame.BorderSizePixel = 0
-    sliderFrame.Parent = parent
+    sliderFrame.Parent = controlPanel
     
     local sliderCorner = Instance.new("UICorner")
-    sliderCorner.CornerRadius = UDim.new(0, 6)
+    sliderCorner.CornerRadius = UDim.new(0, 7)
     sliderCorner.Parent = sliderFrame
     
-    -- Заполненная часть слайдера
+    -- Заполненная часть
     local fillFrame = Instance.new("Frame")
     fillFrame.Size = UDim2.new(0.5, 0, 1, 0)
-    fillFrame.Position = UDim2.new(0, 0, 0, 0)
-    fillFrame.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+    fillFrame.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
     fillFrame.BorderSizePixel = 0
     fillFrame.Parent = sliderFrame
     
     local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(0, 6)
+    fillCorner.CornerRadius = UDim.new(0, 7)
     fillCorner.Parent = fillFrame
     
-    -- Ручка слайдера (увеличена для мобильных экранов)
+    -- Ручка слайдера
     local handle = Instance.new("Frame")
-    handle.Size = UDim2.new(0, 25, 0, 25)
-    handle.Position = UDim2.new(0.5, -12, 0.5, -12)
+    handle.Size = UDim2.new(0, 20, 0, 20)
+    handle.Position = UDim2.new(0.5, -10, 0.5, -10)
     handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     handle.BorderSizePixel = 0
     handle.Parent = sliderFrame
     
     local handleCorner = Instance.new("UICorner")
-    handleCorner.CornerRadius = UDim.new(0, 12)
+    handleCorner.CornerRadius = UDim.new(0, 10)
     handleCorner.Parent = handle
     
-    -- Текст значения
+    -- Значение скорости
     local valueLabel = Instance.new("TextLabel")
-    valueLabel.Size = UDim2.new(0, 50, 1, 0)
-    valueLabel.Position = UDim2.new(1, 10, 0, 0)
+    valueLabel.Size = UDim2.new(0, 50, 0, 20)
+    valueLabel.Position = UDim2.new(0, 140, 0, 60)
     valueLabel.BackgroundTransparency = 1
-    valueLabel.Text = tostring(defaultVal)
+    valueLabel.Text = tostring(flySpeed)
     valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    valueLabel.TextScaled = true
+    valueLabel.TextSize = 12
     valueLabel.Font = Enum.Font.Gotham
-    valueLabel.Parent = sliderFrame
+    valueLabel.Parent = controlPanel
     
-    -- Логика слайдера (адаптирована для тач-скрина)
+    -- Логика слайдера
     local dragging = false
-    local currentValue = defaultVal
     
-    local function updateSlider(value)
-        local percentage = (value - minVal) / (maxVal - minVal)
+    local function updateSlider(speed)
+        local percentage = (speed - 10) / 190 -- От 10 до 200
         fillFrame.Size = UDim2.new(percentage, 0, 1, 0)
-        handle.Position = UDim2.new(percentage, -12, 0.5, -12)
-        valueLabel.Text = string.format("%.0f", value)
-        currentValue = value
-        if callback then callback(value) end
+        handle.Position = UDim2.new(percentage, -10, 0.5, -10)
+        valueLabel.Text = string.format("%.0f", speed)
+        flySpeed = speed
     end
     
-    -- Обработка касаний
     sliderFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             local relativeX = input.Position.X - sliderFrame.AbsolutePosition.X
             local percentage = math.clamp(relativeX / sliderFrame.AbsoluteSize.X, 0, 1)
-            local value = minVal + (maxVal - minVal) * percentage
-            updateSlider(value)
+            local speed = 10 + 190 * percentage
+            updateSlider(speed)
         end
     end)
     
@@ -190,8 +160,8 @@ local function createMobileSlider(parent, position, size, minVal, maxVal, defaul
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local relativeX = input.Position.X - sliderFrame.AbsolutePosition.X
             local percentage = math.clamp(relativeX / sliderFrame.AbsoluteSize.X, 0, 1)
-            local value = minVal + (maxVal - minVal) * percentage
-            updateSlider(value)
+            local speed = 10 + 190 * percentage
+            updateSlider(speed)
         end
     end)
     
@@ -201,193 +171,212 @@ local function createMobileSlider(parent, position, size, minVal, maxVal, defaul
         end
     end)
     
-    updateSlider(defaultVal)
-    return sliderFrame
+    updateSlider(flySpeed)
 end
 
--- Функция создания мобильного текстового поля
-local function createMobileTextBox(parent, position, size, placeholder)
-    local textBox = Instance.new("TextBox")
-    textBox.Size = size
-    textBox.Position = position
-    textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-    textBox.BorderSizePixel = 0
-    textBox.PlaceholderText = placeholder
-    textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-    textBox.Text = ""
-    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textBox.TextScaled = true
-    textBox.Font = Enum.Font.Gotham
-    textBox.Parent = parent
+createSpeedSlider()
+
+-- Кнопка закрытия панели
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -35, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+closeButton.BorderSizePixel = 0
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextScaled = true
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = controlPanel
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 15)
+closeCorner.Parent = closeButton
+
+-- Инструкция по управлению
+local instructionLabel = Instance.new("TextLabel")
+instructionLabel.Size = UDim2.new(1, -20, 0, 40)
+instructionLabel.Position = UDim2.new(0, 10, 0, 100)
+instructionLabel.BackgroundTransparency = 1
+instructionLabel.Text = "📱 WASD или стрелки для движения\n⬆️⬇️ Space/Shift для вверх/вниз"
+instructionLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+instructionLabel.TextSize = 10
+instructionLabel.Font = Enum.Font.Gotham
+instructionLabel.TextWrapped = true
+instructionLabel.Parent = controlPanel
+
+-- Функции флая
+local function startFly()
+    if not character or not rootPart then return end
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = textBox
+    flying = true
     
-    return textBox
+    -- Создаем BodyVelocity для движения
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.Parent = rootPart
+    
+    -- Создаем BodyAngularVelocity для стабилизации
+    bodyAngularVelocity = Instance.new("BodyAngularVelocity")
+    bodyAngularVelocity.MaxTorque = Vector3.new(4000, 4000, 4000)
+    bodyAngularVelocity.AngularVelocity = Vector3.new(0, 0, 0)
+    bodyAngularVelocity.Parent = rootPart
+    
+    -- Меняем внешний вид кнопки
+    flyButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    flyButton.Text = "🛑"
+    
+    flyGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 100)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 50, 50))
+    }
+    
+    -- Основной цикл полета
+    flyConnection = RunService.Heartbeat:Connect(function()
+        if not flying or not bodyVelocity then return end
+        
+        local camera = workspace.CurrentCamera
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        -- Проверяем нажатые клавиши
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up) then
+            moveVector = moveVector + camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.Down) then
+            moveVector = moveVector - camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then
+            moveVector = moveVector - camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then
+            moveVector = moveVector + camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        -- Применяем скорость
+        if moveVector.Magnitude > 0 then
+            moveVector = moveVector.Unit * flySpeed
+        end
+        
+        bodyVelocity.Velocity = moveVector
+    end)
 end
 
--- Создаем мобильные элементы интерфейса
-local button1 = createMobileButton(mainFrame, "🚀 Старт", 
-    UDim2.new(0, 20, 0, 70), UDim2.new(0, 130, 0, 40),
-    Color3.fromRGB(100, 150, 255), function()
-        print("Старт нажат!")
-    end)
+local function stopFly()
+    flying = false
+    
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    
+    if bodyAngularVelocity then
+        bodyAngularVelocity:Destroy()
+        bodyAngularVelocity = nil
+    end
+    
+    -- Возвращаем внешний вид кнопки
+    flyButton.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+    flyButton.Text = "✈️"
+    
+    flyGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(100, 200, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 150, 255))
+    }
+end
 
-local button2 = createMobileButton(mainFrame, "⚙️ Опции", 
-    UDim2.new(0, 170, 0, 70), UDim2.new(0, 130, 0, 40),
-    Color3.fromRGB(255, 100, 150), function()
-        print("Опции открыты!")
-    end)
-
--- Слайдер (компактный)
-local volumeLabel = Instance.new("TextLabel")
-volumeLabel.Size = UDim2.new(0, 80, 0, 25)
-volumeLabel.Position = UDim2.new(0, 20, 0, 130)
-volumeLabel.BackgroundTransparency = 1
-volumeLabel.Text = "🔊 Звук"
-volumeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-volumeLabel.TextScaled = true
-volumeLabel.Font = Enum.Font.Gotham
-volumeLabel.Parent = mainFrame
-
-local volumeSlider = createMobileSlider(mainFrame, 
-    UDim2.new(0, 20, 0, 160), UDim2.new(0, 220, 0, 15),
-    0, 100, 75, function(value)
-        print("Звук:", value)
-    end)
-
--- Текстовое поле (компактное)
-local nameLabel = Instance.new("TextLabel")
-nameLabel.Size = UDim2.new(0, 60, 0, 25)
-nameLabel.Position = UDim2.new(0, 20, 0, 200)
-nameLabel.BackgroundTransparency = 1
-nameLabel.Text = "👤 Имя"
-nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-nameLabel.TextScaled = true
-nameLabel.Font = Enum.Font.Gotham
-nameLabel.Parent = mainFrame
-
-local nameTextBox = createMobileTextBox(mainFrame, 
-    UDim2.new(0, 20, 0, 230), UDim2.new(0, 280, 0, 35),
-    "Введите имя...")
-
--- Информационная панель (компактная)
-local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(0, 280, 0, 80)
-infoFrame.Position = UDim2.new(0, 20, 0, 290)
-infoFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-infoFrame.BorderSizePixel = 0
-infoFrame.Parent = mainFrame
-
-local infoCorner = Instance.new("UICorner")
-infoCorner.CornerRadius = UDim.new(0, 10)
-infoCorner.Parent = infoFrame
-
-local infoText = Instance.new("TextLabel")
-infoText.Size = UDim2.new(1, -20, 1, -10)
-infoText.Position = UDim2.new(0, 10, 0, 5)
-infoText.BackgroundTransparency = 1
-infoText.Text = "📱 Мобильный GUI для Poco C75\n✨ Оптимизирован для сенсорных экранов"
-infoText.TextColor3 = Color3.fromRGB(200, 200, 255)
-infoText.TextWrapped = true
-infoText.Font = Enum.Font.Gotham
-infoText.TextSize = 12
-infoText.Parent = infoFrame
-
--- ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ GUI
-local function toggleGUI()
-    if guiVisible then
-        -- Скрыть GUI
-        local hideTween = TweenService:Create(mainFrame, 
-            TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In),
-            {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}
-        )
-        hideTween:Play()
+-- Функция переключения панели управления
+local function toggleControlPanel()
+    controlPanel.Visible = not controlPanel.Visible
+    
+    if controlPanel.Visible then
+        -- Анимация появления
+        controlPanel.Size = UDim2.new(0, 0, 0, 0)
+        controlPanel.Position = UDim2.new(0, 220, 1, -75)
         
-        -- Изменить кнопку
-        toggleButton.Text = "📱"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
-        guiVisible = false
-        
-    else
-        -- Показать GUI
-        local showTween = TweenService:Create(mainFrame, 
-            TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-            {Size = UDim2.new(0, 320, 0, 400), Position = UDim2.new(0.5, -160, 0.5, -200)}
+        local showTween = TweenService:Create(controlPanel,
+            TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 200, 0, 150), Position = UDim2.new(0, 120, 1, -150)}
         )
         showTween:Play()
-        
-        -- Изменить кнопку
-        toggleButton.Text = "❌"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-        guiVisible = true
     end
 end
 
--- Подключаем функцию к кнопке
-toggleButton.MouseButton1Click:Connect(toggleGUI)
-
--- Анимация кнопки переключения
-toggleButton.MouseButton1Down:Connect(function()
-    local pressTween = TweenService:Create(toggleButton, 
-        TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-        {Size = UDim2.new(0, 45, 0, 45)}
-    )
-    pressTween:Play()
+-- Обработчики событий кнопок
+flyButton.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+    else
+        startFly()
+    end
 end)
 
-toggleButton.MouseButton1Up:Connect(function()
-    local releaseTween = TweenService:Create(toggleButton, 
+-- Длительное нажатие для открытия панели управления
+local longPressTime = 0
+local longPressing = false
+
+flyButton.MouseButton1Down:Connect(function()
+    longPressing = true
+    longPressTime = 0
+    
+    -- Анимация нажатия
+    local pressTween = TweenService:Create(flyButton,
         TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-        {Size = UDim2.new(0, 50, 0, 50)}
+        {Size = UDim2.new(0, 75, 0, 75)}
+    )
+    pressTween:Play()
+    
+    -- Проверяем длительность нажатия
+    spawn(function()
+        while longPressing do
+            wait(0.1)
+            longPressTime = longPressTime + 0.1
+            if longPressTime >= 1 and longPressing then
+                toggleControlPanel()
+                longPressing = false
+                break
+            end
+        end
+    end)
+end)
+
+flyButton.MouseButton1Up:Connect(function()
+    longPressing = false
+    
+    -- Анимация отпускания
+    local releaseTween = TweenService:Create(flyButton,
+        TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        {Size = UDim2.new(0, 80, 0, 80)}
     )
     releaseTween:Play()
 end)
 
--- Анимация появления GUI
-mainFrame.Size = UDim2.new(0, 0, 0, 0)
-mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+closeButton.MouseButton1Click:Connect(function()
+    controlPanel.Visible = false
+end)
 
-local openTween = TweenService:Create(mainFrame, 
-    TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-    {Size = UDim2.new(0, 320, 0, 400), Position = UDim2.new(0.5, -160, 0.5, -200)}
-)
-openTween:Play()
-
--- Функция перетаскивания (адаптированная для мобилки)
-local dragToggle = nil
-local dragSpeed = 0.2
-local dragStart = nil
-local startPos = nil
-
-local function updateInput(input)
-    local delta = input.Position - dragStart
-    local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-        startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    TweenService:Create(mainFrame, TweenInfo.new(dragSpeed), {Position = position}):Play()
-end
-
-titleLabel.InputBegan:Connect(function(input)
-    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then 
-        dragToggle = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragToggle = false
-            end
-        end)
+-- Обработка смены персонажа
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = newCharacter:WaitForChild("Humanoid")
+    rootPart = newCharacter:WaitForChild("HumanoidRootPart")
+    
+    -- Останавливаем полет при смене персонажа
+    if flying then
+        stopFly()
     end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        if dragToggle then
-            updateInput(input)
-        end
-    end
-end)
-
-print("📱 Мобильный GUI для Poco C75 загружен!")
-print("❌ Красная кнопка в правом верхнем углу для включения/выключения GUI")
+print("✈️ Флай скрипт загружен!")
+print("🔵 Нажмите синюю кнопку для полета")
+print("⏰ Удерживайте кнопку 1 секунду для настроек")
