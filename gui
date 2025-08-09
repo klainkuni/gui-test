@@ -1,0 +1,382 @@
+-- Красивый GUI на Luau для Roblox Studio
+-- Поместите этот скрипт в ServerScriptService как обычный Script
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Создаем основной GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BeautifulGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Основной фрейм с градиентом
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 500, 0, 600)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -300)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+-- Закругленные углы для основного фрейма
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 20)
+mainCorner.Parent = mainFrame
+
+-- Градиент для фона
+local gradient = Instance.new("UIGradient")
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 70)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 40))
+}
+gradient.Rotation = 45
+gradient.Parent = mainFrame
+
+-- Тень для основного фрейма
+local shadow = Instance.new("ImageLabel")
+shadow.Name = "Shadow"
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageTransparency = 0.8
+shadow.Size = UDim2.new(1, 20, 1, 20)
+shadow.Position = UDim2.new(0, -10, 0, -10)
+shadow.ZIndex = -1
+shadow.Parent = mainFrame
+
+-- Заголовок
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "Title"
+titleLabel.Size = UDim2.new(1, 0, 0, 60)
+titleLabel.Position = UDim2.new(0, 0, 0, 20)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🎨 Красивый GUI"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextScaled = true
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = mainFrame
+
+-- Функция создания красивой кнопки
+local function createButton(parent, text, position, size, color, callback)
+    local button = Instance.new("TextButton")
+    button.Size = size
+    button.Position = position
+    button.BackgroundColor3 = color
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextScaled = true
+    button.Font = Enum.Font.Gotham
+    button.Parent = parent
+    
+    -- Закругленные углы
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = button
+    
+    -- Градиент кнопки
+    local btnGradient = Instance.new("UIGradient")
+    btnGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, color),
+        ColorSequenceKeypoint.new(1, Color3.new(color.R * 0.8, color.G * 0.8, color.B * 0.8))
+    }
+    btnGradient.Rotation = 90
+    btnGradient.Parent = button
+    
+    -- Анимации при наведении
+    local hoverTween = TweenService:Create(button, 
+        TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        {Size = UDim2.new(size.X.Scale * 1.05, size.X.Offset * 1.05, size.Y.Scale * 1.05, size.Y.Offset * 1.05)}
+    )
+    
+    local normalTween = TweenService:Create(button, 
+        TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        {Size = size}
+    )
+    
+    button.MouseEnter:Connect(function()
+        hoverTween:Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        normalTween:Play()
+    end)
+    
+    -- Анимация нажатия
+    button.MouseButton1Down:Connect(function()
+        local clickTween = TweenService:Create(button, 
+            TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(size.X.Scale * 0.95, size.X.Offset * 0.95, size.Y.Scale * 0.95, size.Y.Offset * 0.95)}
+        )
+        clickTween:Play()
+        
+        clickTween.Completed:Connect(function()
+            normalTween:Play()
+        end)
+    end)
+    
+    if callback then
+        button.MouseButton1Click:Connect(callback)
+    end
+    
+    return button
+end
+
+-- Функция создания слайдера
+local function createSlider(parent, position, size, minVal, maxVal, defaultVal, callback)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = size
+    sliderFrame.Position = position
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 75)
+    sliderFrame.BorderSizePixel = 0
+    sliderFrame.Parent = parent
+    
+    local sliderCorner = Instance.new("UICorner")
+    sliderCorner.CornerRadius = UDim.new(0, 8)
+    sliderCorner.Parent = sliderFrame
+    
+    -- Заполненная часть слайдера
+    local fillFrame = Instance.new("Frame")
+    fillFrame.Size = UDim2.new(0.5, 0, 1, 0)
+    fillFrame.Position = UDim2.new(0, 0, 0, 0)
+    fillFrame.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+    fillFrame.BorderSizePixel = 0
+    fillFrame.Parent = sliderFrame
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 8)
+    fillCorner.Parent = fillFrame
+    
+    -- Ручка слайдера
+    local handle = Instance.new("Frame")
+    handle.Size = UDim2.new(0, 20, 0, 20)
+    handle.Position = UDim2.new(0.5, -10, 0.5, -10)
+    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    handle.BorderSizePixel = 0
+    handle.Parent = sliderFrame
+    
+    local handleCorner = Instance.new("UICorner")
+    handleCorner.CornerRadius = UDim.new(0, 10)
+    handleCorner.Parent = handle
+    
+    -- Текст значения
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0, 60, 1, 0)
+    valueLabel.Position = UDim2.new(1, 10, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(defaultVal)
+    valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueLabel.TextScaled = true
+    valueLabel.Font = Enum.Font.Gotham
+    valueLabel.Parent = sliderFrame
+    
+    -- Логика слайдера
+    local dragging = false
+    local currentValue = defaultVal
+    
+    local function updateSlider(value)
+        local percentage = (value - minVal) / (maxVal - minVal)
+        fillFrame.Size = UDim2.new(percentage, 0, 1, 0)
+        handle.Position = UDim2.new(percentage, -10, 0.5, -10)
+        valueLabel.Text = string.format("%.1f", value)
+        currentValue = value
+        if callback then callback(value) end
+    end
+    
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local mouse = input
+            local relativeX = mouse.Position.X - sliderFrame.AbsolutePosition.X
+            local percentage = math.clamp(relativeX / sliderFrame.AbsoluteSize.X, 0, 1)
+            local value = minVal + (maxVal - minVal) * percentage
+            updateSlider(value)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    updateSlider(defaultVal)
+    return sliderFrame
+end
+
+-- Функция создания текстового поля
+local function createTextBox(parent, position, size, placeholder)
+    local textBox = Instance.new("TextBox")
+    textBox.Size = size
+    textBox.Position = position
+    textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    textBox.BorderSizePixel = 0
+    textBox.PlaceholderText = placeholder
+    textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    textBox.Text = ""
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.TextScaled = true
+    textBox.Font = Enum.Font.Gotham
+    textBox.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = textBox
+    
+    -- Анимация фокуса
+    textBox.Focused:Connect(function()
+        local focusTween = TweenService:Create(textBox, 
+            TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}
+        )
+        focusTween:Play()
+    end)
+    
+    textBox.FocusLost:Connect(function()
+        local unfocusTween = TweenService:Create(textBox, 
+            TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {BackgroundColor3 = Color3.fromRGB(40, 40, 60)}
+        )
+        unfocusTween:Play()
+    end)
+    
+    return textBox
+end
+
+-- Создаем элементы интерфейса
+local button1 = createButton(mainFrame, "🚀 Главная кнопка", 
+    UDim2.new(0, 50, 0, 100), UDim2.new(0, 180, 0, 50),
+    Color3.fromRGB(100, 150, 255), function()
+        print("Главная кнопка нажата!")
+    end)
+
+local button2 = createButton(mainFrame, "⚙️ Настройки", 
+    UDim2.new(0, 270, 0, 100), UDim2.new(0, 180, 0, 50),
+    Color3.fromRGB(255, 100, 150), function()
+        print("Настройки открыты!")
+    end)
+
+local button3 = createButton(mainFrame, "❌ Закрыть", 
+    UDim2.new(0, 50, 0, 170), UDim2.new(0, 400, 0, 40),
+    Color3.fromRGB(255, 80, 80), function()
+        -- Анимация закрытия
+        local closeTween = TweenService:Create(mainFrame, 
+            TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            {Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0)}
+        )
+        closeTween:Play()
+        closeTween.Completed:Connect(function()
+            screenGui:Destroy()
+        end)
+    end)
+
+-- Слайдер громкости
+local volumeLabel = Instance.new("TextLabel")
+volumeLabel.Size = UDim2.new(0, 100, 0, 30)
+volumeLabel.Position = UDim2.new(0, 50, 0, 240)
+volumeLabel.BackgroundTransparency = 1
+volumeLabel.Text = "🔊 Громкость"
+volumeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+volumeLabel.TextScaled = true
+volumeLabel.Font = Enum.Font.Gotham
+volumeLabel.Parent = mainFrame
+
+local volumeSlider = createSlider(mainFrame, 
+    UDim2.new(0, 50, 0, 280), UDim2.new(0, 300, 0, 20),
+    0, 100, 75, function(value)
+        print("Громкость установлена на:", value)
+    end)
+
+-- Текстовое поле для имени
+local nameLabel = Instance.new("TextLabel")
+nameLabel.Size = UDim2.new(0, 100, 0, 30)
+nameLabel.Position = UDim2.new(0, 50, 0, 340)
+nameLabel.BackgroundTransparency = 1
+nameLabel.Text = "👤 Ваше имя"
+nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+nameLabel.TextScaled = true
+nameLabel.Font = Enum.Font.Gotham
+nameLabel.Parent = mainFrame
+
+local nameTextBox = createTextBox(mainFrame, 
+    UDim2.new(0, 50, 0, 380), UDim2.new(0, 400, 0, 40),
+    "Введите ваше имя...")
+
+-- Информационная панель
+local infoFrame = Instance.new("Frame")
+infoFrame.Size = UDim2.new(0, 400, 0, 100)
+infoFrame.Position = UDim2.new(0, 50, 0, 450)
+infoFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+infoFrame.BorderSizePixel = 0
+infoFrame.Parent = mainFrame
+
+local infoCorner = Instance.new("UICorner")
+infoCorner.CornerRadius = UDim.new(0, 12)
+infoCorner.Parent = infoFrame
+
+local infoText = Instance.new("TextLabel")
+infoText.Size = UDim2.new(1, -20, 1, -20)
+infoText.Position = UDim2.new(0, 10, 0, 10)
+infoText.BackgroundTransparency = 1
+infoText.Text = "ℹ️ Этот GUI создан на Luau для Roblox!\n✨ Включает анимации и современный дизайн"
+infoText.TextColor3 = Color3.fromRGB(200, 200, 255)
+infoText.TextWrapped = true
+infoText.Font = Enum.Font.Gotham
+infoText.TextSize = 14
+infoText.Parent = infoFrame
+
+-- Анимация появления GUI
+mainFrame.Size = UDim2.new(0, 0, 0, 0)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+local openTween = TweenService:Create(mainFrame, 
+    TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+    {Size = UDim2.new(0, 500, 0, 600), Position = UDim2.new(0.5, -250, 0.5, -300)}
+)
+openTween:Play()
+
+-- Функция перетаскивания окна
+local dragToggle = nil
+local dragSpeed = 0.25
+local dragStart = nil
+local startPos = nil
+
+local function updateInput(input)
+    local delta = input.Position - dragStart
+    local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+        startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    TweenService:Create(mainFrame, TweenInfo.new(dragSpeed), {Position = position}):Play()
+end
+
+titleLabel.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then 
+        dragToggle = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragToggle = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if dragToggle then
+            updateInput(input)
+        end
+    end
+end)
+
+print("✅ Красивый GUI загружен! Наслаждайтесь интерфейсом!")
